@@ -7,47 +7,64 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AlertTriangle, Car, Building2, Shield, Clock, MapPin, RefreshCw } from "lucide-react"
 
-const API_BASE = 'http://localhost:3001'
+const API_BASE = 'http://localhost:8000'
 
-// Fallback mock data for when API is unavailable
-const mockData = {
+interface AlertItem {
+  id: number
+  title: string
+  summary: string
+  type?: string
+  severity?: string
+  timestamp: string
+  location?: string
+  topics?: string[]
+}
+
+interface DatabaseAlert {
+  id: number
+  timestamp: string
+  content: string
+  alert_type: string
+  is_major: boolean | number
+  is_active: boolean | number
+}
+
+// Fallback mock data based on actual database structure - for when API is unavailable
+const mockData: {
+  commuter: AlertItem[],
+  city: AlertItem[],
+  police: AlertItem[]
+} = {
   commuter: [
     {
-      id: 1,
-      title: "Highway 880 Southbound Closure",
-      summary: "Major accident on Highway 880 southbound near Fremont Boulevard causing significant delays. All lanes blocked, expect 45-60 minute delays. Alternative routes via Highway 84 recommended.",
+      id: 2,
+      title: "Dumbarton Bridge Wind Advisory",
+      summary: "High winds affecting both eastbound and westbound lanes of CA-84 at the Dumbarton Bridge midspan in Fremont. Some lanes are closed. The advisory has been active since June 21, still in effect today.",
       type: "traffic",
       severity: "major",
-      timestamp: "2 hours ago",
-      location: "Highway 880 & Fremont Blvd",
+      timestamp: "2025-06-22T03:07Z",
+      location: "CA-84 Dumbarton Bridge",
     },
     {
-      id: 2,
-      title: "BART Service Delay",
-      summary: "Fremont line experiencing 15-minute delays due to equipment maintenance at Union City station. Service expected to normalize by 3:00 PM.",
+      id: 1,
+      title: "BART Track Replacement",
+      summary: "BART will replace decades-old track components between Walnut Creek and Concord stations. As a result, free buses will replace train service between the two stations on June 21–22.",
       type: "transit",
       severity: "minor",
-      timestamp: "45 minutes ago",
-      location: "Union City BART",
+      timestamp: "Jun 21, 22:29",
+      location: "Walnut Creek to Concord",
     },
   ],
-  city: [
-    {
-      id: 4,
-      title: "City Council Meeting - December 17th",
-      summary: "Council approved the new community center project with a $2.3M budget. Discussion on affordable housing initiatives and updates to the downtown revitalization plan were key highlights.",
-      timestamp: "1 day ago",
-      topics: ["Community Center", "Housing", "Downtown"],
-    },
-  ],
+  city: [],
   police: [
     {
-      id: 6,
-      title: "Community Safety Alert",
-      summary: "Increased patrol presence in Central Park area following recent vandalism reports. Residents encouraged to report suspicious activity via the non-emergency line.",
-      severity: "major",
-      timestamp: "4 hours ago",
-      location: "Central Park Area",
+      id: 5,
+      title: "Fatal Traffic Collision Investigation",
+      summary: "A 79-year-old Fremont resident died several hours after a solo vehicle crash in the 40500 block of Albrae Street, February 24 at approximately 6:40 p.m.",
+      type: "police_report",
+      severity: "minor",
+      timestamp: "February 26, 2025",
+      location: "40500 block of Albrae Street",
     },
   ],
 }
@@ -56,7 +73,7 @@ export default function MyCityPortal() {
   const [activeTab, setActiveTab] = useState("commuter")
   const [data, setData] = useState(mockData)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
   const [isOnline, setIsOnline] = useState(false)
 
   useEffect(() => {
@@ -79,7 +96,11 @@ export default function MyCityPortal() {
       const alertTypes = await typesResponse.json()
       console.log('Available alert types:', alertTypes)
 
-      const newData = {
+      const newData: {
+        commuter: AlertItem[],
+        city: AlertItem[],
+        police: AlertItem[]
+      } = {
         commuter: [],
         city: [],
         police: []
@@ -88,12 +109,12 @@ export default function MyCityPortal() {
       // Fetch alerts for each type
       for (const type of alertTypes) {
         try {
-          const response = await fetch(`${API_BASE}/api/alerts/${type}`)
+          const response = await fetch(`${API_BASE}/api/alerts?alert_type=${type}`)
           if (response.ok) {
             const alerts = await response.json()
 
             // Transform backend data to match frontend structure
-            const transformedAlerts = transformAlertsForType(alerts, type)
+            const transformedAlerts = transformAlertsForType(alerts)
 
             // Categorize alerts
             if (type === 'traffic' || type === 'transit') {
@@ -129,31 +150,75 @@ export default function MyCityPortal() {
     }
   }
 
-  const transformAlertsForType = (alerts, type) => {
+  const transformAlertsForType = (alerts: DatabaseAlert[]): AlertItem[] => {
     if (!Array.isArray(alerts)) {
       // If single alert object, wrap in array
       alerts = [alerts]
     }
 
     return alerts.map(alert => ({
-      id: alert.id || Math.random(),
-      title: alert.title || alert.headline || `${type.replace('_', ' ').toUpperCase()} Alert`,
-      summary: alert.description || alert.summary || alert.content || 'No details available',
-      type: type,
-      severity: alert.severity || (alert.priority === 'high' ? 'major' : 'minor'),
-      timestamp: formatTimestamp(alert.timestamp || alert.created_at || alert.date),
-      location: alert.location || alert.address || 'Location not specified',
-      topics: alert.tags || alert.categories || []
+      id: alert.id,
+      title: generateTitleFromContent(alert.content),
+      summary: alert.content,
+      type: alert.alert_type,
+      severity: alert.is_major ? 'major' : 'minor',
+      timestamp: formatTimestamp(alert.timestamp),
+      location: extractLocationFromContent(alert.content),
+      topics: []
     }))
   }
 
-  const formatTimestamp = (timestamp) => {
+  const generateTitleFromContent = (content: string): string => {
+    // For better titles, look for meaningful sentence breaks
+    const sentences = content.split('. ')
+    
+    // Take the first complete sentence
+    let title = sentences[0]
+    
+    // If the first sentence is too short and there's a second one, combine them
+    if (title.length < 40 && sentences.length > 1) {
+      title = sentences[0] + '. ' + sentences[1]
+    }
+    
+    // Ensure proper sentence ending
+    if (!title.endsWith('.') && !title.endsWith('!') && !title.endsWith('?')) {
+      title += '.'
+    }
+    
+    // Cap at reasonable length
+    if (title.length > 120) {
+      title = title.substring(0, 117) + '...'
+    }
+    
+    return title
+  }
+
+  const extractLocationFromContent = (content: string): string => {
+    // Basic location extraction - look for common patterns
+    const locationPatterns = [
+      /at (\d+[^,.\n]*)/i,
+      /near ([^,.\n]*)/i,
+      /on ([A-Z][^,.\n]*(?:Street|Boulevard|Avenue|Road|Highway))/i,
+      /in the ([^,.\n]* block)/i
+    ]
+    
+    for (const pattern of locationPatterns) {
+      const match = content.match(pattern)
+      if (match) {
+        return match[1].trim()
+      }
+    }
+    
+    return 'Location not specified'
+  }
+
+  const formatTimestamp = (timestamp: string): string => {
     if (!timestamp) return 'Recently'
 
     try {
       const date = new Date(timestamp)
       const now = new Date()
-      const diffMs = now - date
+      const diffMs = now.getTime() - date.getTime()
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
       const diffDays = Math.floor(diffHours / 24)
 
@@ -170,14 +235,14 @@ export default function MyCityPortal() {
     }
   }
 
-  const getSeverityIcon = (severity) => {
+  const getSeverityIcon = (severity?: string) => {
     if (severity === "major") {
       return <AlertTriangle className="h-4 w-4 text-red-500" />
     }
     return null
   }
 
-  const getTypeIcon = (type) => {
+  const getTypeIcon = (type?: string) => {
     switch (type) {
       case "traffic":
         return <Car className="h-4 w-4 text-blue-500" />
