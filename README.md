@@ -1,5 +1,5 @@
 ## Project overview
-MyCity is a full-stack project I built solo at the UC Berkeley AI Hackathon 2025, held on June 21–22. The prototype demonstrates a fully functional end-to-end workflow, covering data crawling, content generation, database integration, and a frontend web app.
+MyCity is a full-stack project I built solo at [the UC Berkeley AI Hackathon 2025](https://uc-berkeley-ai-hackathon-2025.devpost.com/), held on June 21–22. The prototype demonstrates a fully functional end-to-end workflow, covering data crawling, content generation, database integration, and a frontend web app. See link to my final submission [here](https://devpost.com/software/mycity-av1qpx?ref_content=my-projects-tab&ref_feature=my_projects).
 ## Inspiration
 Local news deserts have been expanding rapidly across the U.S., with 3,300 newspapers closing over the past two decades. While short videos on emerging platforms offer quick updates, the MyCity app series serves as a reliable and accurate source of truth, helping people stay informed about what’s happening in their own cities.
 
