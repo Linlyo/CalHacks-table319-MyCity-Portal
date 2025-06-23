@@ -38,7 +38,7 @@ Example text:
 > • **Transportation Services:** $510,000 annually for Lyft ride-hailing services and $120,000 for call center services for seniors and disabled residents through 2028  
 
 Mock main page:
-![Main app page demo](demo-main-page.png)
+![Main app page demo](domain-main-page-functional.png)
 
 
 
